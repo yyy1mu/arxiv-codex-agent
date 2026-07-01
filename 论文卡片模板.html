@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>论文总结卡片</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Noto+Serif+SC:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F6F8FB;            /* 冷灰页面 */
+    --card:#FFFFFF;
+    --ink:#1A1E25;           /* 标题 */
+    --ink-2:#3B414B;         /* 正文 */
+    --ink-3:#7E8693;         /* 弱化 */
+    --line:#ECEEF2;          /* 浅灰分隔 */
+    --accent:#1B45A0;        /* 主强调（编号/点缀） */
+    --pill-bg:#EFF3F9; --pill-line:#E2E8F1;
+    --good-bg:#EAF6EE; --good-line:#CDE9D8; --good:#1E7E45;
+    --risk-bg:#FCF1E6; --risk-line:#F2DEC8; --risk:#B26318;
+    --verdict-bg:#161E33; --verdict-2:#A9B4CC;
+    --display:"Source Serif 4","Noto Serif SC","Noto Serif CJK SC",serif;
+    --body:"IBM Plex Sans","Noto Sans SC",sans-serif;
+    --mono:"IBM Plex Mono","Noto Sans SC",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+
+  .stage{width:1120px;background:var(--bg);padding:44px;}
+
+  .card{
+    background:var(--card);border-radius:24px;padding:40px;
+    box-shadow:0 8px 30px rgba(22,30,55,.07);
+    font-family:var(--body);color:var(--ink-2);
+  }
+
+  /* ===== 标题区 ===== */
+  .kicker{font-family:var(--mono);font-weight:600;font-size:19px;letter-spacing:.2em;color:var(--accent);text-transform:uppercase;margin-bottom:16px;}
+  .title{font-family:var(--display);font-weight:600;font-size:38px;line-height:1.4;letter-spacing:0;color:var(--ink);}
+
+  .pills{margin-top:24px;display:flex;flex-wrap:wrap;gap:12px;}
+  .pill{
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--pill-bg);border:1px solid var(--pill-line);
+    border-radius:999px;padding:9px 18px;font-size:21px;color:var(--ink-2);
+  }
+  .pill .lb{font-family:var(--mono);font-size:18px;color:var(--ink-3);letter-spacing:.02em;}
+  .pill b{font-weight:600;color:var(--ink);}
+
+  /* ===== 普通小节 ===== */
+  .sec{margin-top:36px;}
+  .sec .h{display:flex;align-items:baseline;gap:14px;margin-bottom:16px;}
+  .sec .h .idx{font-family:var(--mono);font-weight:600;font-size:21px;color:var(--accent);letter-spacing:.04em;}
+  .sec .h .t{font-family:var(--display);font-weight:600;font-size:30px;color:var(--ink);}
+  .sec > p{font-size:29px;line-height:1.66;color:var(--ink-2);padding-top:14px;border-top:1px solid var(--line);}
+  .sec b,.sec strong{color:var(--ink);font-weight:700;}
+
+  ol.pts{list-style:none;counter-reset:p;display:flex;flex-direction:column;gap:14px;padding-top:14px;border-top:1px solid var(--line);}
+  ol.pts li{counter-increment:p;position:relative;padding-left:46px;font-size:29px;line-height:1.6;color:var(--ink-2);}
+  ol.pts li::before{
+    content:counter(p);position:absolute;left:0;top:4px;
+    width:30px;height:30px;border-radius:50%;
+    font-family:var(--mono);font-weight:600;font-size:18px;
+    display:flex;align-items:center;justify-content:center;
+    background:#EAEEF6;color:var(--accent);
+  }
+
+  /* ===== 着色小节：亮点(good) / 不足(risk) ===== */
+  .panel{margin-top:30px;border-radius:18px;padding:32px 34px;}
+  .panel .h{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+  .panel .h .dot{width:14px;height:14px;border-radius:50%;}
+  .panel .h .idx{font-family:var(--mono);font-weight:600;font-size:20px;letter-spacing:.04em;}
+  .panel .h .t{font-family:var(--display);font-weight:600;font-size:30px;}
+  .panel ol.pts{border-top:none;padding-top:0;}
+  .panel ol.pts li b{color:var(--ink);}
+
+  .panel.good{background:var(--good-bg);border:1px solid var(--good-line);}
+  .panel.good .h .dot{background:var(--good);} .panel.good .h .idx{color:var(--good);} .panel.good .h .t{color:#155C32;}
+  .panel.good ol.pts li::before{background:#D7EEDF;color:var(--good);}
+  .panel.good ol.pts li{color:#2E4838;}
+
+  .panel.risk{background:var(--risk-bg);border:1px solid var(--risk-line);}
+  .panel.risk .h .dot{background:var(--risk);} .panel.risk .h .idx{color:var(--risk);} .panel.risk .h .t{color:#8A4A12;}
+  .panel.risk ol.pts li::before{background:#F6E2CC;color:var(--risk);}
+  .panel.risk ol.pts li{color:#4A3A2A;}
+
+  /* ===== Final Verdict 卡片 ===== */
+  .verdict{
+    margin-top:34px;background:var(--verdict-bg);border-radius:20px;
+    padding:38px 40px;display:flex;gap:38px;align-items:center;color:#EAEDF4;
+  }
+  .verdict .score{flex:0 0 auto;text-align:center;border-right:1px solid rgba(255,255,255,.16);padding-right:38px;}
+  .verdict .score .n{font-family:var(--display);font-weight:700;font-size:88px;line-height:.9;color:#fff;}
+  .verdict .score .n span{font-size:34px;font-weight:600;color:var(--verdict-2);}
+  .verdict .score .l{font-family:var(--mono);font-size:18px;letter-spacing:.22em;color:var(--verdict-2);margin-top:10px;}
+  .verdict .body .vt{font-family:var(--display);font-weight:600;font-size:26px;color:#fff;letter-spacing:.04em;margin-bottom:12px;}
+  .verdict .body p{font-size:27px;line-height:1.62;color:#D4D9E4;}
+  .verdict .body b{color:#fff;}
+
+  .foot{margin-top:30px;text-align:center;font-family:var(--mono);font-size:19px;color:var(--ink-3);letter-spacing:.04em;}
+</style>
+</head>
+<body>
+
+<div class="stage"><div class="card" id="card"></div></div>
+
+<script>
+/* ============================================================
+   只改下面的 paper 对象即可生成新卡片。
+   - kicker：标题上方的小标签（可选）
+   - meta：胶囊标签数组；含"评分/score/rating"的项会被抽到
+           底部 Final Verdict 卡片，不进胶囊行
+   - sections：
+       · 普通段落 {idx,title,body}
+       · 普通列表 {idx,title,items:[]}
+       · 亮点(绿底) 加 tone:"good"
+       · 不足(橙底) 加 tone:"risk"
+       · 总评卡片  加 tone:"verdict"（自动带评分）
+   - 文字内可用 <b>…</b> 加粗
+   ============================================================ */
+const paper = {
+  kicker: "Paper Summary",
+  title: "ZERO-APT: A Closed-Loop Adversarial Framework for LLM-Driven Automated Penetration Testing under Intelligent Defense",
+  meta: [
+    { label: "arXiv", value: "2606.05567v1" },
+    { label: "类别", value: "Network Security" },
+    { label: "来源", value: "LaTeX" },
+    { label: "状态", value: "首次提交" },
+    { label: "评分", value: "8.2/10" }
+  ],
+  sections: [
+    { idx:"01", title:"核心问题",
+      body:"现有 LLM 驱动的自动化渗透测试均在<b>静态目标</b>上评估，目标既不检测也不响应攻击，导致评估缺乏真实性；同时多步攻击链的<b>因果一致性</b>受制于 LLM 不稳定的推理能力，且 Agent 决策过程<b>不透明</b>。" },
+    { idx:"02", title:"方法",
+      body:"提出 <b>ZERO-APT</b>，一个回合制攻击者–防御者–裁判（Attacker–Defender–Judge）闭环框架。Attacker 通过规划-执行分离、多维 ReAct 反馈、以及基于 <b>775 个 Atomic Red Team 动作</b>的硬约束过滤库三个架构机制，将因果一致性从 LLM 推理转移到系统架构中；Defender 基于 Sysmon 遥测和 ELK Stack 提供三个可配置的检测强度等级（<b>L1/L2/L3</b>）；Judge 负责每轮裁决并生成符合 <b>STIX 2.0</b> 的结构化 CTI 报告。" },
+    { idx:"03", title:"关键发现 / 实验",
+      body:"在 Windows Server 2022 的 5 个后渗透场景上进行了 <b>1400 次实验</b>（5 场景 × 4 方案 × 3 Defender 强度 × 20 重复 + 200 消融）。ZERO-APT 总体攻击成功率 <b>ASR 达 79%</b>（Aurora 22%，PentestGPT 39%），因果一致性评分 <b>CCS 0.860</b>（Aurora 0.930，Claude Code 0.520），因果断裂失败率 <b>CBF% 仅 10.3%</b>（Claude Code 27.4%，PentestGPT 38.6%）。消融实验显示去掉动作库 ASR 降至 48%，合并多层架构降至 42%。与 Claude Code 的 ASR 对比未达统计显著（p=0.195）。" },
+    { idx:"04", title:"亮点", items:[
+      "首次将<b>智能防御</b>作为一等公民嵌入渗透测试评估框架，填补了“面对活对手”评估范式的空白。",
+      "架构<b>消融实验</b>设计严谨，清晰地分离了动作库、分层架构和 Judge 闭环各自的贡献。",
+      "<b>CTI 报告</b>将攻击链决策过程完全结构化、可追溯，有效解决了 LLM 决策不透明问题。"
+    ]},
+    { idx:"05", title:"不足", items:[
+      "与 Claude Code 的 ASR 对比在全局水平<b>不显著（p=0.195）</b>，削弱了“架构优于纯 LLM 推理”的核心论点。",
+      "全部实验仅使用 <b>Claude Opus 4.7 单一模型</b>，缺乏跨模型泛化验证。",
+      "仅覆盖 <b>Windows Server 2022 单平台</b>，775 个动作库在大规模场景中的可迁移性未充分验证。",
+      "Defender 止步于<b>检测</b>，尚无主动响应、蜜罐或欺骗防御等对抗手段。"
+    ]},
+    { tone:"verdict", title:"总评",
+      body:"一篇扎实的体系结构驱动型工作，通过 Attacker–Defender–Judge 闭环在智能防御评估上迈出了重要一步，但<b>单一模型</b>和<b>有限平台范围</b>限制了结论的普遍性。" }
+  ],
+  footer: "arXiv 2606.05567v1 · Network Security · Paper Summary Card"
+};
+
+/* ---------- 渲染（一般无需改动） ---------- */
+const isScore = l => /评分|score|rating/i.test(l);
+
+function render(p){
+  const scoreItem = (p.meta||[]).find(m => isScore(m.label));
+  const pills = (p.meta||[]).filter(m => !isScore(m.label));
+
+  let html = "";
+  if (p.kicker) html += `<div class="kicker">${p.kicker}</div>`;
+  html += `<div class="title">${p.title}</div>`;
+
+  if (pills.length){
+    html += `<div class="pills">` + pills.map(m =>
+      `<span class="pill"><span class="lb">${m.label}</span><b>${m.value}</b></span>`
+    ).join("") + `</div>`;
+  }
+
+  p.sections.forEach(s => {
+    if (s.tone === "verdict"){
+      let sc = "";
+      if (scoreItem){
+        const raw = String(scoreItem.value).replace(/\s/g,"");
+        const m = raw.match(/^([\d.]+)\s*\/?\s*(\d+)?/);
+        const num = m ? m[1] : raw;
+        const den = m && m[2] ? `<span>/${m[2]}</span>` : "";
+        sc = `<div class="score"><div class="n">${num}${den}</div><div class="l">SCORE</div></div>`;
+      }
+      html += `<div class="verdict">${sc}<div class="body"><div class="vt">FINAL VERDICT · ${s.title}</div><p>${s.body}</p></div></div>`;
+      return;
+    }
+    if (s.tone === "good" || s.tone === "risk"){
+      html += `<div class="panel ${s.tone}"><div class="h"><span class="dot"></span>${s.idx?`<span class="idx">${s.idx}</span>`:""}<span class="t">${s.title}</span></div>`;
+      html += `<ol class="pts">` + (s.items||[]).map(i=>`<li>${i}</li>`).join("") + `</ol></div>`;
+      return;
+    }
+    html += `<div class="sec"><div class="h">${s.idx?`<span class="idx">${s.idx}</span>`:""}<span class="t">${s.title}</span></div>`;
+    html += s.items ? `<ol class="pts">`+s.items.map(i=>`<li>${i}</li>`).join("")+`</ol>` : `<p>${s.body}</p>`;
+    html += `</div>`;
+  });
+
+  if (p.footer) html += `<div class="foot">${p.footer}</div>`;
+  document.getElementById("card").innerHTML = html;
+}
+render(paper);
+</script>
+</body>
+</html>
