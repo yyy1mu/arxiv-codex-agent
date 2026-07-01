@@ -31,15 +31,34 @@ export interface PaperBrief {
 const SDK_MODEL = process.env.ARXIV_AGENT_SDK_MODEL ?? "deepseek-v4-flash-ascend";
 const CODEX_BASE_URL = requireEnv("CODEX_BASE_URL");
 const CODEX_API_KEY = requireEnv("CODEX_API_KEY");
+const CODEX_MODEL_PROVIDER = process.env.ARXIV_AGENT_CODEX_PROVIDER ?? "local-codex";
 // Total attempts per paper before giving up (retries on any Codex SDK error).
 const REVIEW_MAX_ATTEMPTS = Number(process.env.ARXIV_AGENT_REVIEW_ATTEMPTS ?? 3);
-const CODEX_HTTP_FALLBACK = process.env.ARXIV_CODEX_HTTP_FALLBACK !== "0";
-const codex = new Codex({ baseUrl: CODEX_BASE_URL, apiKey: CODEX_API_KEY });
+const codex = createCodexClient();
 
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required environment variable: ${name}. Copy .env.example to .env and fill it in.`);
   return value;
+}
+
+function createCodexClient(): Codex {
+  if (CODEX_MODEL_PROVIDER === "openai") return new Codex({ baseUrl: CODEX_BASE_URL, apiKey: CODEX_API_KEY });
+  return new Codex({
+    apiKey: CODEX_API_KEY,
+    config: {
+      model_provider: CODEX_MODEL_PROVIDER,
+      model_providers: {
+        [CODEX_MODEL_PROVIDER]: {
+          name: CODEX_MODEL_PROVIDER,
+          base_url: CODEX_BASE_URL,
+          env_key: "CODEX_API_KEY",
+          wire_api: "responses",
+          supports_websockets: false,
+        },
+      },
+    },
+  });
 }
 
 const REVIEW_SYSTEM = `你是一位资深的计算机安全研究员，为 arXiv 安全论文撰写中文评测。
@@ -90,39 +109,10 @@ async function runCodex(prompt: string, options: RunCodexOptions = {}) {
 
   const thread = codex.startThread(threadOptions);
   const fullPrompt = options.systemPrompt ? `${options.systemPrompt}\n\n用户任务：\n${prompt}` : prompt;
-  let raw = "";
-  try {
-    const turn = await thread.run(fullPrompt, options.outputSchema ? { outputSchema: options.outputSchema } : undefined);
-    raw = turn.finalResponse.trim();
-  } catch (e) {
-    if (!CODEX_HTTP_FALLBACK) throw e;
-    raw = await runResponsesHttp(fullPrompt);
-  }
+  const turn = await thread.run(fullPrompt, options.outputSchema ? { outputSchema: options.outputSchema } : undefined);
+  const raw = turn.finalResponse.trim();
   if (!raw) throw new Error("Codex SDK 未返回 finalResponse");
   return { result: raw, structured_output: parseJsonObject(raw) };
-}
-
-async function runResponsesHttp(input: string): Promise<string> {
-  const url = `${CODEX_BASE_URL.replace(/\/$/, "")}/responses`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${CODEX_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model: SDK_MODEL, input }),
-  });
-  if (!res.ok) throw new Error(`Codex HTTP fallback 失败: ${res.status} ${await res.text()}`);
-  const data: any = await res.json();
-  const text =
-    data.output_text ??
-    data.output
-      ?.flatMap((item: any) => item?.content ?? [])
-      ?.filter((c: any) => c?.type === "output_text" || typeof c?.text === "string")
-      ?.map((c: any) => c.text)
-      ?.join("");
-  if (typeof text !== "string" || !text.trim()) throw new Error("Codex HTTP fallback 未返回文本");
-  return text.trim();
 }
 
 function parseJsonObject(raw: string): unknown {
@@ -167,31 +157,42 @@ export async function filterInteresting(cat: string, papers: Paper[]): Promise<M
   const list = papers
     .map((p, i) => `${i + 1}. id=${p.id}\n标题: ${p.title}\n摘要: ${p.summary.slice(0, 400)}`)
     .join("\n\n");
-  try {
-    const result = await runCodex(`arXiv 分类 ${cat}，共 ${papers.length} 篇，请初筛：\n\n${list}`, {
-      systemPrompt: FILTER_SYSTEM,
-    });
-    const picked = parseFilter(result.structured_output, result.result);
-    // Map ids back to the full paper; tolerate the model dropping the version.
-    const byId = new Map<string, Paper>();
-    for (const p of papers) {
-      byId.set(p.id, p);
-      byId.set(p.id.replace(/v\d+$/, ""), p);
-    }
-    const out: MatchedPaper[] = [];
-    const seen = new Set<string>();
-    for (const { id, domain } of picked) {
-      const p = byId.get(id) ?? byId.get(id.replace(/v\d+$/, ""));
-      if (p && !seen.has(p.id)) {
-        seen.add(p.id);
-        out.push({ ...p, category: SECURITY_DOMAINS.includes(domain) ? domain : cat });
+  const prompt = `arXiv 分类 ${cat}，共 ${papers.length} 篇，请初筛：\n\n${list}`;
+  let lastErr: unknown;
+
+  for (let attempt = 1; attempt <= REVIEW_MAX_ATTEMPTS; attempt++) {
+    try {
+      const result = await runCodex(prompt, {
+        systemPrompt: FILTER_SYSTEM,
+      });
+      const picked = parseFilter(result.structured_output, result.result);
+      // Map ids back to the full paper; tolerate the model dropping the version.
+      const byId = new Map<string, Paper>();
+      for (const p of papers) {
+        byId.set(p.id, p);
+        byId.set(p.id.replace(/v\d+$/, ""), p);
+      }
+      const out: MatchedPaper[] = [];
+      const seen = new Set<string>();
+      for (const { id, domain } of picked) {
+        const p = byId.get(id) ?? byId.get(id.replace(/v\d+$/, ""));
+        if (p && !seen.has(p.id)) {
+          seen.add(p.id);
+          out.push({ ...p, category: SECURITY_DOMAINS.includes(domain) ? domain : cat });
+        }
+      }
+      return out;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < REVIEW_MAX_ATTEMPTS) {
+        console.log(`  ↻ ${cat} 初筛第 ${attempt}/${REVIEW_MAX_ATTEMPTS} 次出错，重试: ${String(e).slice(0, 120)}`);
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
       }
     }
-    return out;
-  } catch (e) {
-    console.log(`  ⚠️ ${cat} 初筛失败，跳过该分类: ${String(e).slice(0, 120)}`);
-    return [];
   }
+
+  console.log(`  ⚠️ ${cat} 初筛重试用尽，跳过该分类: ${String(lastErr).slice(0, 120)}`);
+  return [];
 }
 
 function parseFilter(structured: unknown, raw: string): { id: string; domain: string }[] {

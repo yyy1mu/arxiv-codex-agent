@@ -30,11 +30,13 @@ Required values:
 - `CODEX_BASE_URL` - Codex-compatible API base URL
 - `CODEX_API_KEY` - API key for that endpoint
 - `ARXIV_AGENT_SDK_MODEL` - model name used by the review agent
+- `ARXIV_AGENT_CODEX_PROVIDER` - Codex CLI model provider name for this local
+  endpoint; defaults to `local-codex`
 
-The app tries `@openai/codex-sdk` first. If the local endpoint does not support
-the Codex CLI WebSocket `/responses` transport, it falls back to the same
-endpoint's HTTP `/responses` API. Set `ARXIV_CODEX_HTTP_FALLBACK=0` to disable
-that fallback.
+The app uses `@openai/codex-sdk` as the agent layer. For local OpenAI-compatible
+endpoints, it registers a Codex model provider with `supports_websockets=false`
+so Codex keeps its agent workflow while using the endpoint's HTTP Responses
+transport instead of the CLI websocket transport.
 
 ## Run
 
